@@ -20,7 +20,7 @@ import sys, os, json, tempfile, shutil
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "engine"))
-from decision_engine import decide, calculate_risk, check_regulatory_constraints, is_privileged
+from decision_engine import decide, calcular_risco as calculate_risk, verificar_constraints as check_regulatory_constraints, eh_privilegiado as is_privileged
 from persistence import save, load_all
 from correlation import correlate
 from maturity import build_report

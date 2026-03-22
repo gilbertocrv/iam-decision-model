@@ -24,8 +24,8 @@ from correlation import correlate
 
 # ─── Maturity state thresholds ────────────────────────────────────────────────
 
-CRITICAL_THRESHOLD  = 0.40   # >40% decisions critical  → maturity Critical
-UNSTABLE_THRESHOLD  = 0.20   # >20% decisions critical  → maturity Unstable
+from config import MATURIDADE_THRESHOLD_CRITICO, MATURIDADE_THRESHOLD_INSTAVEL
+
 
 
 # ─── Aggregators ─────────────────────────────────────────────────────────────
@@ -77,9 +77,9 @@ def _pct_outside_tolerance(records):
 
 
 def _maturity_state(pct_outside: float) -> str:
-    if pct_outside >= CRITICAL_THRESHOLD * 100:
+    if pct_outside >= MATURIDADE_THRESHOLD_CRITICO * 100:
         return "CRITICO"
-    if pct_outside >= UNSTABLE_THRESHOLD * 100:
+    if pct_outside >= MATURIDADE_THRESHOLD_INSTAVEL * 100:
         return "UNSTABLE"
     return "STABLE"
 
