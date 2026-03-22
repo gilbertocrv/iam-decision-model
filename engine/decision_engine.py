@@ -1,169 +1,198 @@
 """
-Risk-Adaptive IAM Decision Engine
-----------------------------------
-Model  version : 0.2.0
-Rule   version : 1.0.0
+Motor de Decisão IAM Adaptativo ao Risco
+=========================================
+Versão do modelo : 0.3.0
+Versão das regras: 1.1.0
 
-Architecture
-------------
-Decision = f(risk, business_rule, regulatory_constraint)
+Fórmula central
+---------------
+Decisão = f(risco, regra_de_negócio, maturidade, restrição_regulatória)
 
-Zones
------
-  dynamic     — risk score drives the decision
-  conditioned — risk + business rule
-  restricted  — regulatory constraint dominates, risk cannot relax it
+Ordem de prioridade na decisão
+-------------------------------
+1. Restrição regulatória  — não pode ser relaxada por nenhum outro fator
+2. Maturidade organizacional — eleva exigência quando HIGH
+3. Score de risco         — define a zona dinâmica e condicionada
+
+Zonas de decisão
+----------------
+  restrita     — restrição regulatória ou maturidade HIGH com risco elevado
+  condicionada — risco crítico sem violação regulatória
+  dinâmica     — risco baixo/alto sem constraint ativa
 """
 
 from datetime import datetime, timezone
 import json
 import uuid
 
-MODEL_VERSION = "0.2.0"
-RULE_VERSION  = "1.0.0"
+MODEL_VERSION = "0.3.0"
+RULE_VERSION  = "1.1.0"
+
+PRIVILEGED_ROLES = {
+    "global admin", "db admin", "read admin", "system admin",
+    "cloud admin", "security admin", "network admin", "domain admin",
+    "root", "superuser", "sysadmin", "administrator",
+}
+
+MATURITY_LEVELS = {"LOW", "MEDIUM", "HIGH"}
+MATURITY_CRITICAL_THRESHOLD = 0.40
+MATURITY_UNSTABLE_THRESHOLD = 0.20
 
 
-# ─── Risk scoring ─────────────────────────────────────────────────────────────
+def is_privileged(role: str) -> bool:
+    return role.strip().lower() in PRIVILEGED_ROLES
+
 
 def calculate_risk(data: dict) -> tuple[int, list[dict]]:
-    """
-    Apply deterministic risk rules.
-    Returns (total_score, list_of_activated_factors).
-    """
-    score   = 0
+    score = 0
     factors = []
 
-    if "Admin" in data.get("role", ""):
+    if is_privileged(data.get("role", "")):
         score += 50
-        factors.append({"rule": "R1", "reason": "privileged role", "score": 50})
+        factors.append({"regra": "R1", "motivo": "papel privilegiado", "score": 50})
 
     if not data.get("mfa_enabled", True):
         score += 40
-        factors.append({"rule": "R2", "reason": "MFA disabled", "score": 40})
+        factors.append({"regra": "R2", "motivo": "MFA desabilitado", "score": 40})
 
     inactive_days = data.get("last_login_days", 0)
     if inactive_days > 30:
         score += 20
-        factors.append({
-            "rule"  : "R3",
-            "reason": f"inactive {inactive_days} days",
-            "score" : 20,
-        })
+        factors.append({"regra": "R3", "motivo": f"inativo há {inactive_days} dias", "score": 20})
 
-    if data.get("environment") == "production":
+    env = data.get("environment", "")
+    if env in ("production", "producao"):
         score += 30
-        factors.append({"rule": "R4", "reason": "production environment", "score": 30})
+        factors.append({"regra": "R4", "motivo": "ambiente de produção", "score": 30})
 
     return score, factors
 
 
 def classify_risk(score: int) -> str:
-    if score >= 100: return "CRITICAL"
-    if score >= 50:  return "HIGH"
-    if score >= 20:  return "MEDIUM"
-    return "LOW"
+    if score >= 100: return "CRITICO"
+    if score >= 50:  return "ALTO"
+    if score >= 20:  return "MEDIO"
+    return "BAIXO"
 
-
-# ─── Regulatory constraints ───────────────────────────────────────────────────
 
 def check_regulatory_constraints(data: dict) -> list[dict]:
-    """
-    Hard constraints derived from regulatory frameworks.
-    Violations cannot be overridden by risk score.
-    """
     violations = []
-    frameworks = data.get("framework", [])
+    frameworks = [f.upper().replace(" ", "") for f in data.get("framework", [])]
 
     if not data.get("mfa_enabled", True):
         if "SOX" in frameworks:
-            violations.append({
-                "constraint": "C1",
-                "framework" : "SOX",
-                "reason"    : "MFA required for privileged access",
-            })
+            violations.append({"constraint": "C1", "framework": "SOX",
+                "motivo": "MFA obrigatório para acesso privilegiado (SOX)"})
         if "ISO27001" in frameworks:
-            violations.append({
-                "constraint": "C2",
-                "framework" : "ISO27001",
-                "reason"    : "strong authentication required for critical access",
-            })
+            violations.append({"constraint": "C2", "framework": "ISO27001",
+                "motivo": "autenticação forte obrigatória para acesso crítico (ISO 27001)"})
+        if "PCIDSS" in frameworks:
+            violations.append({"constraint": "C3", "framework": "PCI DSS",
+                "motivo": "MFA obrigatório para acesso administrativo a ambientes de dados de cartão (PCI DSS)"})
 
     return violations
 
 
-# ─── Decision engine ──────────────────────────────────────────────────────────
+def validate_maturity(level: str) -> str:
+    normalized = (level or "MEDIUM").strip().upper()
+    return normalized if normalized in MATURITY_LEVELS else "MEDIUM"
+
+
+def apply_maturity(risk_score: int, maturity_level: str, current_decision: str, path: list):
+    if maturity_level == "HIGH" and risk_score >= 50:
+        if current_decision in ("ALLOW", "ALLOW_WITH_RESTRICTION"):
+            path.append("maturidade_high_aplicada")
+            return "BLOCK_OR_ENFORCE_MFA", "restrita", "escalamento_de_risco"
+
+    if maturity_level == "MEDIUM" and risk_score >= 100:
+        if current_decision == "ALLOW_WITH_RESTRICTION":
+            path.append("maturidade_medium_aplicada")
+            return "REQUIRE_ACTION", "condicionada", "exigencia_de_mitigacao"
+
+    return current_decision, None, None
+
 
 def decide(data: dict) -> dict:
-    """
-    Core decision function.
+    path = ["risco_calculado"]
 
-    Produces a full decision trace — not just a verdict.
-    Every output answers four questions:
-      1. What happened?      → risk_score, risk_classification, decision
-      2. Why did it happen?  → risk_factors, regulatory_violations
-      3. Where did the decision come from? → decision_basis
-      4. Which zone applied? → applied_zone
-    """
-    path = ["risk_scored"]
+    maturity_level      = validate_maturity(data.get("maturity_level", "MEDIUM"))
+    risk_score, factors = calculate_risk(data)
+    risk_classification = classify_risk(risk_score)
+    violations          = check_regulatory_constraints(data)
+    maturity_influence  = None
 
-    risk_score, risk_factors   = calculate_risk(data)
-    risk_classification        = classify_risk(risk_score)
-    violations                 = check_regulatory_constraints(data)
-
-    # Regulatory constraint takes precedence — cannot be relaxed by risk score
     if violations:
-        path      += ["constraint_detected", "restricted_zone_applied", "decision_generated"]
-        decision       = "BLOCK_OR_ENFORCE_MFA"
-        decision_basis = "regulatory_constraint"
-        applied_zone   = "restricted"
+        path += ["constraint_detectada", "zona_restrita_aplicada", "decisao_gerada"]
+        decision = "BLOCK_OR_ENFORCE_MFA"
+        decision_basis = "restricao_regulatoria"
+        applied_zone = "restrita"
 
     elif risk_score >= 100:
-        path      += ["critical_risk_detected", "conditioned_zone_applied", "decision_generated"]
-        decision       = "REQUIRE_ACTION"
-        decision_basis = "risk_score"
-        applied_zone   = "conditioned"
+        path += ["risco_critico_detectado", "zona_condicionada_aplicada"]
+        decision = "REQUIRE_ACTION"
+        decision_basis = "score_de_risco"
+        applied_zone = "condicionada"
+        _, zone_override, influence = apply_maturity(risk_score, maturity_level, decision, path)
+        if zone_override:
+            applied_zone = zone_override
+            maturity_influence = influence
+            decision_basis = "maturidade_organizacional"
+        path.append("decisao_gerada")
 
     elif risk_score >= 50:
-        path      += ["high_risk_detected", "dynamic_zone_applied", "decision_generated"]
-        decision       = "ALLOW_WITH_RESTRICTION"
-        decision_basis = "risk_score"
-        applied_zone   = "dynamic"
+        path += ["risco_alto_detectado", "zona_dinamica_aplicada"]
+        decision = "ALLOW_WITH_RESTRICTION"
+        decision_basis = "score_de_risco"
+        applied_zone = "dinamica"
+        decision_upd, zone_override, influence = apply_maturity(risk_score, maturity_level, decision, path)
+        if zone_override:
+            decision = decision_upd
+            applied_zone = zone_override
+            maturity_influence = influence
+            decision_basis = "maturidade_organizacional"
+        path.append("decisao_gerada")
 
     else:
-        path      += ["low_risk_detected", "dynamic_zone_applied", "decision_generated"]
-        decision       = "ALLOW"
-        decision_basis = "risk_score"
-        applied_zone   = "dynamic"
+        path += ["risco_baixo_detectado", "zona_dinamica_aplicada"]
+        decision = "ALLOW"
+        decision_basis = "score_de_risco"
+        applied_zone = "dinamica"
+        decision_upd, zone_override, influence = apply_maturity(risk_score, maturity_level, decision, path)
+        if zone_override:
+            decision = decision_upd
+            applied_zone = zone_override
+            maturity_influence = influence
+            decision_basis = "maturidade_organizacional"
+        path.append("decisao_gerada")
 
     return {
-        "event_id"             : f"evt-{uuid.uuid4().hex[:12]}",
-        "timestamp"            : datetime.now(timezone.utc).isoformat(),
-        "model_version"        : MODEL_VERSION,
-        "rule_version"         : RULE_VERSION,
-        "user"                 : data.get("user"),
-        "target_resource"      : data.get("target_resource", "unspecified"),
-        "environment"          : data.get("environment"),
-        "framework_scope"      : data.get("framework", []),
-        "risk_score"           : risk_score,
-        "risk_classification"  : risk_classification,
-        "risk_factors"         : risk_factors,
-        "regulatory_violations": violations,
-        "decision"             : decision,
-        "decision_basis"       : decision_basis,
-        "applied_zone"         : applied_zone,
-        "decision_path"        : path,
+        "event_id"              : f"evt-{uuid.uuid4().hex[:12]}",
+        "timestamp"             : datetime.now(timezone.utc).isoformat(),
+        "model_version"         : MODEL_VERSION,
+        "rule_version"          : RULE_VERSION,
+        "user"                  : data.get("user"),
+        "recurso_alvo"          : data.get("target_resource", "nao_especificado"),
+        "ambiente"              : data.get("environment"),
+        "frameworks_declarados" : data.get("framework", []),
+        "maturity_level"        : maturity_level,
+        "risk_score"            : risk_score,
+        "risk_classification"   : risk_classification,
+        "risk_factors"          : factors,
+        "regulatory_violations" : violations,
+        "decision"              : decision,
+        "decision_basis"        : decision_basis,
+        "applied_zone"          : applied_zone,
+        "maturity_influence"    : maturity_influence,
+        "decision_path"         : path,
     }
 
 
-# ─── CLI ──────────────────────────────────────────────────────────────────────
-
 if __name__ == "__main__":
     import sys
-
     if len(sys.argv) > 1:
         with open(sys.argv[1]) as f:
             input_data = json.load(f)
-        print(json.dumps(decide(input_data), indent=2))
+        print(json.dumps(decide(input_data), indent=2, ensure_ascii=False))
     else:
-        print("Usage: python decision_engine.py <input.json>")
-        print("       See examples/ for sample inputs.")
+        print("Uso: python decision_engine.py <input.json>")
+        print("     Veja examples/ para exemplos de entrada.")

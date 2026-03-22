@@ -52,7 +52,7 @@ def _rule_activation(records):
     rule_counts = Counter()
     for r in records:
         for factor in r.get("risk_factors", []):
-            rule_counts[factor["rule"]] += 1
+            rule_counts[factor["regra"]] += 1
     return dict(rule_counts.most_common())
 
 
@@ -70,7 +70,7 @@ def _pct_outside_tolerance(records):
         return 0.0
     outside = sum(
         1 for r in records
-        if r.get("risk_classification") in ("CRITICAL",)
+        if r.get("risk_classification") in ("CRITICO",)
         or r.get("decision") in ("BLOCK_OR_ENFORCE_MFA", "REQUIRE_ACTION")
     )
     return round(outside / len(records) * 100, 1)
@@ -78,7 +78,7 @@ def _pct_outside_tolerance(records):
 
 def _maturity_state(pct_outside: float) -> str:
     if pct_outside >= CRITICAL_THRESHOLD * 100:
-        return "CRITICAL"
+        return "CRITICO"
     if pct_outside >= UNSTABLE_THRESHOLD * 100:
         return "UNSTABLE"
     return "STABLE"

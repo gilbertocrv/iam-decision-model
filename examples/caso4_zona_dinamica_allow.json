@@ -1,0 +1,11 @@
+{
+  "_descricao": "Caso 4 — Usuário padrão, baixo risco, staging. Zona dinâmica, acesso permitido.",
+  "user": "user99",
+  "role": "Viewer",
+  "mfa_enabled": true,
+  "last_login_days": 5,
+  "environment": "staging",
+  "target_resource": "dashboard-relatorios",
+  "framework": ["ISO27001"],
+  "maturity_level": "LOW"
+}

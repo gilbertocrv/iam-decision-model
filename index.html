@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Motor de Decisão IAM Adaptativo ao Risco</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#003366;--navy-mid:#004080;--navy-light:#0056b3;--accent:#c8922a;
+  --accent-light:#e8a83a;--bg:#f4f6f8;--white:#fff;--gray:#666;
+  --border:#d1d9e4;--text:#1a2340;--green:#1a7a4a;--green-light:#e8f5ee;
+  --amber:#a06400;--amber-light:#fff8ed;--red:#c0392b;--red-light:#fdf0ef;
+  --purple:#5b2d8e;--purple-light:#f5f0ff;--mono:'IBM Plex Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+.breadcrumb{background:var(--navy);padding:10px 30px;font-family:var(--mono);font-size:11px;color:rgba(255,255,255,.4)}
+.breadcrumb a{color:var(--accent-light);text-decoration:none}
+.breadcrumb span{margin:0 6px}
+header{background:var(--navy);padding:52px 30px 48px;position:relative;overflow:hidden}
+header::after{content:'IAM';position:absolute;bottom:-20px;right:20px;font-family:var(--mono);font-size:160px;font-weight:700;color:rgba(255,255,255,.03);pointer-events:none}
+.header-inner{max-width:1100px;margin:auto;position:relative;z-index:1}
+.serie-badge{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:600;background:rgba(200,146,42,.2);color:var(--accent-light);border:1px solid rgba(200,146,42,.4);padding:4px 12px;border-radius:3px;letter-spacing:2px;margin-bottom:18px}
+header h1{font-size:34px;font-weight:700;color:#fff;margin-bottom:12px}
+header h1 span{color:var(--accent-light)}
+header p{font-size:14px;color:rgba(255,255,255,.68);max-width:700px;margin-bottom:20px}
+.header-meta{display:flex;gap:10px;flex-wrap:wrap}
+.meta-pill{font-family:var(--mono);font-size:11px;padding:4px 10px;border:1px solid rgba(255,255,255,.14);border-radius:3px;color:rgba(255,255,255,.65)}
+main{max-width:1100px;margin:0 auto;padding:40px 30px 70px}
+.section-label{font-family:var(--mono);font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--accent);margin-bottom:16px}
+.formula-banner{background:var(--navy);color:rgba(255,255,255,.7);font-family:var(--mono);font-size:12px;padding:14px 30px;letter-spacing:.01em;border-bottom:2px solid var(--accent);margin-bottom:36px}
+.formula-banner span{color:var(--accent-light)}
+.serie-context{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:36px}
+.serie-card{background:var(--white);border:1px solid var(--border);border-radius:6px;padding:20px 22px}
+.serie-card.active{border-left:3px solid var(--accent)}
+.serie-card h3{font-size:13px;font-weight:700;color:var(--navy);margin-bottom:6px}
+.serie-card p{font-size:12px;color:var(--gray)}
+.serie-tag{font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:3px;margin-bottom:8px;display:inline-block}
+.tag-done{background:var(--green-light);color:var(--green)}
+.tag-active{background:var(--amber-light);color:var(--amber)}
+.tool-main{background:var(--white);border:1px solid var(--border);border-top:3px solid var(--accent);border-radius:6px;padding:28px;margin-bottom:36px;display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap}
+.tool-main-info{flex:1;min-width:240px}
+.tool-step{font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:3px;margin-bottom:14px;display:inline-block;background:var(--green-light);color:var(--green)}
+.tool-main h2{font-size:20px;font-weight:700;color:var(--navy);margin-bottom:10px}
+.tool-main p{font-size:13px;color:var(--gray);line-height:1.7;margin-bottom:16px}
+.ctrl-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.ctrl-tag{font-family:var(--mono);font-size:10px;padding:2px 7px;background:#f0f4fa;color:var(--navy-light);border-radius:3px}
+.tool-link{display:inline-block;font-family:var(--mono);font-size:12px;font-weight:600;padding:11px 20px;background:var(--navy);color:#fff;border-radius:4px;text-decoration:none;transition:background .15s;cursor:pointer;border:none}
+.tool-link:hover{background:var(--navy-mid)}
+.tool-main-features{flex:1;min-width:240px}
+.feature-list{list-style:none;display:flex;flex-direction:column;gap:8px}
+.feature-list li{font-size:12px;color:var(--gray);padding-left:16px;position:relative;line-height:1.5}
+.feature-list li::before{content:'→';position:absolute;left:0;color:var(--accent)}
+
+/* Engine */
+.engine-wrap{background:var(--white);border:1px solid var(--border);border-radius:6px;margin-bottom:36px;overflow:hidden}
+.engine-header{background:var(--navy);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.engine-title{font-family:var(--mono);font-size:13px;font-weight:600;color:#fff}
+.engine-versions{font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.4)}
+.engine-live{font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.5);display:flex;align-items:center;gap:5px}
+.live-dot{width:6px;height:6px;border-radius:50%;background:#4caf50;display:inline-block;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.engine-body{display:grid;grid-template-columns:360px 1fr;min-height:540px}
+.engine-input{border-right:1px solid var(--border);padding:22px;overflow-y:auto}
+.input-section-label{font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--accent);margin-bottom:12px}
+.case-tabs{display:flex;flex-direction:column;gap:4px;margin-bottom:16px}
+.case-tab{font-family:var(--mono);font-size:11px;padding:7px 12px;border:1px solid var(--border);border-radius:4px;background:#fafbfc;color:var(--navy);cursor:pointer;transition:all .12s;text-align:left;line-height:1.4}
+.case-tab:hover{border-color:var(--navy-light)}
+.case-tab.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
+.field{margin-bottom:11px}
+.field label{font-family:var(--mono);font-size:10px;color:var(--gray);display:block;margin-bottom:3px}
+.field input,.field select{width:100%;font-family:var(--mono);font-size:12px;padding:7px 10px;border:1px solid var(--border);border-radius:4px;background:#fafbfc;color:var(--text);outline:none}
+.field input:focus,.field select:focus{border-color:var(--navy-light)}
+.toggle-row{display:flex;align-items:center;gap:10px}
+.toggle{position:relative;width:40px;height:20px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.slider{position:absolute;inset:0;background:#d1d9e4;border-radius:20px;cursor:pointer;transition:.18s}
+.slider:before{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.18s}
+.toggle input:checked+.slider{background:var(--green)}
+.toggle input:checked+.slider:before{transform:translateX(20px)}
+.toggle-label{font-family:var(--mono);font-size:12px}
+.fw-checks{display:flex;gap:10px;flex-wrap:wrap}
+.fw-check{display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11px;cursor:pointer}
+.fw-check input{accent-color:var(--navy)}
+.maturity-select{display:flex;gap:6px;flex-wrap:wrap}
+.mat-btn{font-family:var(--mono);font-size:11px;padding:5px 12px;border:1px solid var(--border);border-radius:4px;background:#fafbfc;color:var(--navy);cursor:pointer;transition:all .12s}
+.mat-btn:hover{border-color:var(--navy-light)}
+.mat-btn.sel-low{background:var(--green-light);color:var(--green);border-color:rgba(26,122,74,.3)}
+.mat-btn.sel-medium{background:var(--amber-light);color:var(--amber);border-color:rgba(160,100,0,.3)}
+.mat-btn.sel-high{background:var(--red-light);color:var(--red);border-color:rgba(192,57,43,.3)}
+.run-btn{width:100%;font-family:var(--mono);font-size:12px;font-weight:600;padding:11px;background:var(--navy);color:#fff;border:none;border-radius:4px;cursor:pointer;transition:background .15s;margin-top:6px}
+.run-btn:hover{background:var(--navy-mid)}
+
+/* Output */
+.engine-output{display:flex;flex-direction:column}
+.output-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;color:var(--gray);text-align:center}
+.output-empty .icon{font-family:var(--mono);font-size:28px;color:var(--border);margin-bottom:10px}
+.output-empty p{font-size:12px;font-family:var(--mono)}
+
+/* Decision banner */
+.dec-banner{padding:16px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.dec-label{font-family:var(--mono);font-size:10px;color:var(--gray);margin-bottom:4px;letter-spacing:.3px}
+.dec-value{font-family:var(--mono);font-size:14px;font-weight:600;padding:5px 14px;border-radius:4px}
+.d-allow{background:var(--green-light);color:var(--green)}
+.d-restrict{background:var(--amber-light);color:var(--amber)}
+.d-action{background:#fff3cd;color:#856404}
+.d-block{background:var(--red-light);color:var(--red)}
+.dec-meta{text-align:right}
+.dec-zone{font-family:var(--mono);font-size:10px;padding:3px 9px;border-radius:3px;border:1px solid var(--border);color:var(--gray)}
+
+/* Explicação textual */
+.dec-explain{padding:14px 22px;border-bottom:1px solid var(--border);background:#fafbfc}
+.dec-explain p{font-size:13px;color:var(--text);line-height:1.6}
+.dec-explain strong{color:var(--navy)}
+
+/* Score */
+.score-sec{padding:14px 22px;border-bottom:1px solid var(--border)}
+.score-sec .sec-label{font-family:var(--mono);font-size:10px;color:var(--gray);letter-spacing:.3px;margin-bottom:8px}
+.score-big{font-family:var(--mono);font-size:26px;font-weight:600;color:var(--navy);line-height:1}
+.score-cls{font-family:var(--mono);font-size:11px;padding:3px 9px;border-radius:3px;margin-left:8px;vertical-align:middle}
+.sc-critico{background:var(--red-light);color:var(--red)}
+.sc-alto{background:var(--amber-light);color:var(--amber)}
+.sc-medio{background:#fff8e1;color:#795600}
+.sc-baixo{background:var(--green-light);color:var(--green)}
+.factors{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.factor-chip{font-family:var(--mono);font-size:10px;padding:3px 8px;background:#f0f4fa;border:1px solid var(--border);border-radius:3px;color:var(--navy)}
+.mat-influence{font-family:var(--mono);font-size:10px;padding:3px 9px;background:var(--red-light);border:1px solid rgba(192,57,43,.2);border-radius:3px;color:var(--red);margin-top:6px;display:inline-block}
+
+/* Violações */
+.viol-sec{padding:14px 22px;border-bottom:1px solid var(--border);background:var(--red-light)}
+.viol-sec .sec-label{font-family:var(--mono);font-size:10px;color:var(--red);letter-spacing:.3px;margin-bottom:8px}
+.viol-item{display:flex;gap:8px;align-items:flex-start;margin-bottom:5px}
+.viol-fw{font-family:var(--mono);font-size:10px;font-weight:600;color:var(--red);flex-shrink:0;margin-top:1px}
+.viol-text{font-size:12px;color:var(--red)}
+
+/* Path */
+.path-sec{padding:14px 22px;border-bottom:1px solid var(--border)}
+.path-sec .sec-label{font-family:var(--mono);font-size:10px;color:var(--gray);letter-spacing:.3px;margin-bottom:8px}
+.path-steps{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.path-step{font-family:var(--mono);font-size:10px;padding:4px 9px;background:#f0f4fa;border:1px solid var(--border);border-radius:3px;color:var(--navy)}
+.path-step.last{background:var(--navy);color:#fff;border-color:var(--navy)}
+.path-arrow{color:var(--accent);font-size:11px}
+.path-readable{margin-top:8px;font-size:11px;color:var(--gray);line-height:1.5}
+
+/* JSON + export */
+.json-sec{padding:14px 22px;flex:1}
+.json-sec .sec-label{font-family:var(--mono);font-size:10px;color:var(--gray);letter-spacing:.3px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.export-btn{font-family:var(--mono);font-size:10px;padding:3px 10px;border:1px solid var(--border);border-radius:3px;background:#fff;color:var(--navy-light);cursor:pointer;text-decoration:none}
+.export-btn:hover{border-color:var(--navy-light)}
+.json-block{font-family:var(--mono);font-size:11px;line-height:1.7;white-space:pre-wrap;color:#2e3a4e;background:#fafbfc;border:1px solid var(--border);border-radius:4px;padding:12px;overflow-x:auto;max-height:220px;overflow-y:auto}
+.jk{color:var(--navy-light)}.js{color:var(--green)}.jn{color:var(--accent)}.jf{color:var(--red)}.jt{color:var(--green)}.jnu{color:var(--gray)}
+
+/* Maturidade */
+.maturity-wrap{background:var(--white);border:1px solid var(--border);border-radius:6px;padding:22px;margin-bottom:36px}
+.mat-state-row{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.mat-badge{font-family:var(--mono);font-size:12px;font-weight:600;padding:5px 14px;border-radius:4px}
+.mb-estavel{background:var(--green-light);color:var(--green)}
+.mb-instavel{background:var(--amber-light);color:var(--amber)}
+.mb-critico{background:var(--red-light);color:var(--red)}
+.mat-sub{font-size:12px;color:var(--gray)}
+.mat-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px;margin-bottom:16px}
+.mat-card{background:#fafbfc;border:1px solid var(--border);border-radius:4px;padding:12px 14px}
+.mat-card .ml{font-family:var(--mono);font-size:10px;color:var(--gray);margin-bottom:3px}
+.mat-card .mv{font-family:var(--mono);font-size:20px;font-weight:600;color:var(--navy)}
+.mat-card .ms{font-size:11px;color:var(--gray);margin-top:2px}
+.rule-bars{display:flex;flex-direction:column;gap:7px}
+.rb-row{display:flex;align-items:center;gap:10px}
+.rb-label{font-family:var(--mono);font-size:11px;color:var(--navy);width:24px;flex-shrink:0}
+.rb-track{flex:1;background:var(--border);border-radius:3px;height:6px;overflow:hidden}
+.rb-fill{height:100%;background:var(--navy-light);border-radius:3px;transition:width .4s}
+.rb-count{font-family:var(--mono);font-size:11px;color:var(--gray);width:16px;text-align:right}
+.signals-list{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.sig-item{display:flex;gap:8px;align-items:flex-start;padding:8px 12px;border-radius:4px;border:1px solid var(--border);background:#fafbfc}
+.sig-badge{font-family:var(--mono);font-size:10px;font-weight:600;padding:2px 7px;border-radius:3px;flex-shrink:0}
+.sig-critical{background:var(--red-light);color:var(--red)}
+.sig-warning{background:var(--amber-light);color:var(--amber)}
+.sig-text{font-size:12px;color:var(--gray)}
+.sig-user{font-weight:700;color:var(--navy)}
+.mat-empty{font-family:var(--mono);font-size:12px;color:var(--gray)}
+
+/* Flow */
+.flow-wrap{background:var(--white);border:1px solid var(--border);border-radius:6px;padding:24px;margin-bottom:36px}
+.flow-steps{display:flex;align-items:stretch;gap:6px;flex-wrap:wrap;margin-top:16px}
+.flow-step{flex:1;min-width:110px;padding:14px 12px;border:1px solid var(--border);border-radius:6px;text-align:center;background:#fafbfc}
+.flow-step-num{font-family:var(--mono);font-size:10px;color:var(--accent);margin-bottom:4px}
+.flow-step-name{font-size:12px;font-weight:700;color:var(--navy);margin-bottom:4px}
+.flow-step-desc{font-size:11px;color:var(--gray)}
+.flow-arrow{font-size:18px;color:#c8d4e0;display:flex;align-items:center;flex-shrink:0}
+
+/* Docs */
+.docs-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:36px}
+.doc-card{background:var(--white);border:1px solid var(--border);border-radius:6px;padding:18px 20px}
+.doc-card h4{font-size:13px;font-weight:700;color:var(--navy);margin-bottom:6px}
+.doc-card p{font-size:12px;color:var(--gray);line-height:1.6}
+.doc-card a{font-family:var(--mono);font-size:11px;color:var(--navy-light);text-decoration:none;margin-top:10px;display:inline-block}
+
+/* Note */
+.note{background:var(--purple-light);border:1px solid rgba(91,45,142,.2);border-radius:6px;padding:16px 20px;margin-bottom:36px;display:flex;gap:14px;align-items:flex-start}
+.note-icon{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--purple);background:rgba(91,45,142,.1);padding:4px 8px;border-radius:3px;flex-shrink:0;margin-top:2px}
+.note p{font-size:12px;color:var(--purple);line-height:1.65}
+.note strong{display:block;margin-bottom:4px;font-size:13px}
+
+/* Footer */
+.footer{border-top:1px solid var(--border);padding-top:24px;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px}
+.footer-author{font-size:13px;color:var(--gray)}
+.footer-author strong{color:var(--navy);display:block;margin-bottom:4px}
+.footer-links{display:flex;gap:8px;flex-wrap:wrap}
+.footer-link{font-family:var(--mono);font-size:11px;color:var(--navy-light);text-decoration:none;border:1px solid var(--border);background:#fff;border-radius:4px;padding:8px 12px}
+.footer-link:hover{border-color:var(--navy-light)}
+.footer-note{width:100%;font-size:11px;color:var(--gray);padding-top:16px;border-top:1px solid var(--border)}
+
+@media(max-width:900px){.serie-context{grid-template-columns:1fr}.engine-body{grid-template-columns:1fr}.engine-input{border-right:none;border-bottom:1px solid var(--border)}.docs-grid{grid-template-columns:1fr}}
+@media(max-width:768px){.flow-steps{flex-direction:column}}
+</style>
+</head>
+<body>
+
+<div class="breadcrumb">
+  <a href="https://github.com/gilbertocrv">gilbertocrv</a><span>/</span>
+  <a href="https://github.com/gilbertocrv/risk-adaptive-iam-decision-model">risk-adaptive-iam-decision-model</a>
+</div>
+
+<header>
+  <div class="header-inner">
+    <div class="serie-badge">MOTOR DE DECISÃO · RISK-ADAPTIVE IAM</div>
+    <h1>Motor de Decisão IAM <span>Adaptativo ao Risco</span></h1>
+    <p>Decisão de acesso orientada a risco — dinâmica, rastreável, limitada por restrições regulatórias e governada por maturidade organizacional. Motor interativo rodando inteiramente no browser, sem backend.</p>
+    <div class="header-meta">
+      <span class="meta-pill">ISO 27001</span>
+      <span class="meta-pill">SOX</span>
+      <span class="meta-pill">PCI DSS</span>
+      <span class="meta-pill">LGPD</span>
+      <span class="meta-pill">modelo v0.3.0</span>
+      <span class="meta-pill">100% local · sem servidor</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <div class="formula-banner">
+    Decisão = f(<span>risco</span>, <span>regra de negócio</span>, <span>maturidade</span>, <span>restrição regulatória</span>)
+    &nbsp;·&nbsp; <span>decision_basis</span> · <span>applied_zone</span> · <span>decision_path</span>
+  </div>
+
+  <div class="section-label">Contexto do projeto</div>
+  <div class="serie-context">
+    <div class="serie-card">
+      <span class="serie-tag tag-done">✓ SÉRIE 2 — CONCLUÍDA</span>
+      <h3>Governança IAM</h3>
+      <p>Políticas, padrões técnicos e procedimentos alinhados à ISO 27001. Define <em>o que deveria existir</em>.</p>
+    </div>
+    <div class="serie-card">
+      <span class="serie-tag tag-done">✓ SÉRIE 3 — CONCLUÍDA</span>
+      <h3>Mensuração de Efetividade</h3>
+      <p>Scores por controle ISO, avaliação de risco e decisão rastreável do analista. <em>Fecha a cadeia de evidência</em>.</p>
+    </div>
+    <div class="serie-card active">
+      <span class="serie-tag tag-active">→ ESTE REPOSITÓRIO</span>
+      <h3>Motor de Decisão Adaptativo</h3>
+      <p>Decisão dinâmica baseada em risco, maturidade e restrições regulatórias. <em>Separa decisão de execução</em>.</p>
+    </div>
+  </div>
+
+  <div class="section-label">O modelo</div>
+  <div class="tool-main">
+    <div class="tool-main-info">
+      <span class="tool-step">MOTOR DE DECISÃO ORIENTADO A RISCO</span>
+      <h2>Risk-Adaptive IAM Decision Engine</h2>
+      <p>Cada evento de acesso é avaliado contra regras determinísticas de risco, maturidade organizacional e restrições regulatórias. O resultado não é apenas um veredito — é um <strong>decision trace completo</strong>: score, fatores, violações, maturidade aplicada, zona e caminho lógico da decisão. Rastreável por design.</p>
+      <div class="ctrl-row">
+        <span class="ctrl-tag">R1 · papel privilegiado +50</span>
+        <span class="ctrl-tag">R2 · sem MFA +40</span>
+        <span class="ctrl-tag">R3 · inativo >30d +20</span>
+        <span class="ctrl-tag">R4 · produção +30</span>
+      </div>
+      <button class="tool-link" onclick="document.getElementById('motor').scrollIntoView({behavior:'smooth'})">Executar decisão →</button>
+    </div>
+    <div class="tool-main-features">
+      <ul class="feature-list">
+        <li>Decisão dinâmica — score calculado em tempo real por regras determinísticas</li>
+        <li>Maturidade como input — LOW / MEDIUM / HIGH altera o limiar de decisão</li>
+        <li>Restrição regulatória domina — SOX, ISO 27001 e PCI DSS não podem ser relaxados</li>
+        <li>Decision trace completo — score, fatores, violações, maturidade, zona e path em JSON</li>
+        <li>Exportar decisão — download do JSON auditável direto no browser</li>
+        <li>Maturidade acumulada — métricas de sessão, regras mais ativadas, sinais de correlação</li>
+        <li>Portado para Python — engine/decision_engine.py com 16 testes automatizados</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section-label" id="motor">Motor de decisão — interativo</div>
+  <div class="engine-wrap">
+    <div class="engine-header">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span class="engine-title">decision_engine.js</span>
+        <span class="engine-versions">modelo v0.3.0 · regras v1.1.0</span>
+      </div>
+      <div class="engine-live"><span class="live-dot"></span>rodando · 100% local</div>
+    </div>
+    <div class="engine-body">
+
+      <div class="engine-input">
+        <div class="input-section-label">CASOS PRÉ-CARREGADOS</div>
+        <div class="case-tabs" id="case-tabs">
+          <button class="case-tab active" onclick="loadCase(0)">caso 1 · admin sem MFA · violação SOX + ISO</button>
+          <button class="case-tab" onclick="loadCase(1)">caso 2 · DBA · risco crítico · sem violação</button>
+          <button class="case-tab" onclick="loadCase(2)">caso 3 · DBA · risco alto · zona dinâmica</button>
+          <button class="case-tab" onclick="loadCase(3)">caso 4 · viewer · baixo risco · allow</button>
+          <button class="case-tab" onclick="loadCase(4)">caso 5 · maturidade HIGH eleva decisão</button>
+          <button class="case-tab" onclick="loadCase(5)">caso 6 · PCI DSS · violação C3</button>
+        </div>
+        <hr class="divider">
+        <div class="input-section-label">EDITAR MANUALMENTE</div>
+        <div class="field"><label>USUÁRIO</label><input type="text" id="f-user" value="admin01"></div>
+        <div class="field"><label>PAPEL (ROLE)</label><input type="text" id="f-role" value="Global Admin"></div>
+        <div class="field">
+          <label>MFA</label>
+          <div class="toggle-row">
+            <label class="toggle"><input type="checkbox" id="f-mfa" onchange="document.getElementById('mfa-lbl').textContent=this.checked?'Habilitado':'Desabilitado'"><span class="slider"></span></label>
+            <span class="toggle-label" id="mfa-lbl">Desabilitado</span>
+          </div>
+        </div>
+        <div class="field"><label>INATIVIDADE (DIAS)</label><input type="number" id="f-days" value="45" min="0"></div>
+        <div class="field">
+          <label>AMBIENTE</label>
+          <select id="f-env"><option value="production">production</option><option value="staging">staging</option><option value="dev">dev</option></select>
+        </div>
+        <div class="field"><label>RECURSO ALVO</label><input type="text" id="f-resource" value="portal-admin-producao"></div>
+        <div class="field">
+          <label>FRAMEWORKS</label>
+          <div class="fw-checks">
+            <label class="fw-check"><input type="checkbox" id="fw-sox" checked> SOX</label>
+            <label class="fw-check"><input type="checkbox" id="fw-iso" checked> ISO27001</label>
+            <label class="fw-check"><input type="checkbox" id="fw-pci"> PCI DSS</label>
+            <label class="fw-check"><input type="checkbox" id="fw-lgpd"> LGPD</label>
+          </div>
+        </div>
+        <div class="field">
+          <label>MATURIDADE ORGANIZACIONAL</label>
+          <div class="maturity-select" id="mat-btns">
+            <button class="mat-btn" onclick="setMaturity('LOW',this)">LOW</button>
+            <button class="mat-btn sel-medium" onclick="setMaturity('MEDIUM',this)">MEDIUM</button>
+            <button class="mat-btn" onclick="setMaturity('HIGH',this)">HIGH</button>
+          </div>
+          <input type="hidden" id="f-maturity" value="MEDIUM">
+        </div>
+        <button class="run-btn" onclick="runDecision()">→ executar decisão</button>
+      </div>
+
+      <div class="engine-output" id="engine-output">
+        <div class="output-empty">
+          <div class="icon">{ }</div>
+          <p>Selecione um caso ou edite os campos<br>e clique em executar decisão</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="section-label">Maturidade — sessão atual</div>
+  <div class="maturity-wrap" id="maturity-section">
+    <div class="mat-empty">Execute pelo menos uma decisão para gerar métricas de maturidade.</div>
+  </div>
+
+  <div class="section-label">Fluxo de decisão</div>
+  <div class="flow-wrap">
+    <p style="font-size:13px;color:var(--gray)">Cada evento percorre o fluxo completo — da coleta de contexto ao decision trace auditável.</p>
+    <div class="flow-steps">
+      <div class="flow-step"><div class="flow-step-num">1 · TRIGGER</div><div class="flow-step-name">Evento de acesso</div><div class="flow-step-desc">usuário · papel · ambiente</div></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="flow-step-num">2 · RISCO</div><div class="flow-step-name">Score + classificação</div><div class="flow-step-desc">R1 · R2 · R3 · R4</div></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="flow-step-num">3 · MATURIDADE</div><div class="flow-step-name">Limitador dinâmico</div><div class="flow-step-desc">LOW · MEDIUM · HIGH</div></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="flow-step-num">4 · RESTRIÇÃO</div><div class="flow-step-name">Constraint regulatória</div><div class="flow-step-desc">SOX · ISO · PCI DSS</div></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="flow-step-num">5 · DECISÃO</div><div class="flow-step-name">Zona aplicada</div><div class="flow-step-desc">restrita · condicionada · dinâmica</div></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="flow-step-num">6 · EVIDÊNCIA</div><div class="flow-step-name">Decision trace</div><div class="flow-step-desc">auditável · versionado · exportável</div></div>
+    </div>
+  </div>
+
+  <div class="section-label">Documentação</div>
+  <div class="docs-grid">
+    <div class="doc-card">
+      <h4>Arquitetura do modelo</h4>
+      <p>Fórmula central, zonas de decisão, papel da maturidade, loop de feedback e evolution path documentados.</p>
+      <a href="docs/architecture.md">→ architecture.md</a>
+    </div>
+    <div class="doc-card">
+      <h4>Motor Python (v0.3.0)</h4>
+      <p>Port fiel do motor JS. Maturidade como input, PCI DSS (C3), lista explícita de papéis privilegiados. Saída idêntica ao browser.</p>
+      <a href="engine/decision_engine.py">→ decision_engine.py</a>
+    </div>
+    <div class="doc-card">
+      <h4>Suite de testes — 16 casos</h4>
+      <p>Cobertura completa: zonas, maturidade, restrição regulatória, persistência JSONL, correlação e relatório de maturidade.</p>
+      <a href="tests/test_decision_engine.py">→ test_decision_engine.py</a>
+    </div>
+    <div class="doc-card">
+      <h4>Executor em lote + maturidade</h4>
+      <p>Executa N casos, persiste em evidence/*.jsonl, gera relatório com distribuição por zona, regras ativadas e sinais de correlação.</p>
+      <a href="run_batch.py">→ run_batch.py</a>
+    </div>
+  </div>
+
+  <div class="note">
+    <span class="note-icon">MODELO</span>
+    <div>
+      <p><strong>O que diferencia este modelo</strong>
+      O limite da decisão não é apenas o risco — é a capacidade da organização de controlá-lo. Maturidade LOW aceita mais risco; HIGH eleva a exigência independente de frameworks. Quando há restrição regulatória, ela domina todos os outros fatores. Cada decisão produz um <code>decision_path</code> que torna o raciocínio do modelo completamente auditável e rastreável à versão exata das regras que a produziram.</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="footer-author">
+      <strong>Gilberto Gonçalves dos Santos Filho</strong>
+      Analista de Governança de Identidades — IAM · PAM · GRC
+    </div>
+    <div class="footer-links">
+      <a class="footer-link" href="https://linkedin.com/in/gilberto-filho-4430a3184">LinkedIn</a>
+      <a class="footer-link" href="https://github.com/gilbertocrv">GitHub</a>
+      <a class="footer-link" href="https://github.com/gilbertocrv/iso27001-iam-governance">← Série 2</a>
+      <a class="footer-link" href="https://github.com/gilbertocrv/iam-control-effectiveness-model">← Efetividade S3</a>
+    </div>
+    <p class="footer-note">Processamento 100% local — nenhum dado enviado a servidores externos. Conteúdo educacional independente baseado em normas públicas. Não substitui consultoria técnica ou jurídica especializada.</p>
+  </div>
+
+</main>
+
+<script>
+const MODEL_VERSION = "0.3.0";
+const RULE_VERSION  = "1.1.0";
+
+const PRIVILEGED_ROLES = new Set([
+  "global admin","db admin","read admin","system admin","cloud admin",
+  "security admin","network admin","domain admin","root","superuser",
+  "sysadmin","administrator"
+]);
+
+function isPrivileged(role){ return PRIVILEGED_ROLES.has((role||"").trim().toLowerCase()); }
+
+function calculateRisk(d){
+  let score=0; const factors=[];
+  if(isPrivileged(d.role)){score+=50;factors.push({regra:"R1",motivo:"papel privilegiado",score:50});}
+  if(!d.mfa_enabled){score+=40;factors.push({regra:"R2",motivo:"MFA desabilitado",score:40});}
+  if((d.last_login_days||0)>30){score+=20;factors.push({regra:"R3",motivo:`inativo há ${d.last_login_days} dias`,score:20});}
+  if(d.environment==="production"){score+=30;factors.push({regra:"R4",motivo:"ambiente de produção",score:30});}
+  return {score,factors};
+}
+
+function classifyRisk(s){
+  if(s>=100)return"CRITICO"; if(s>=50)return"ALTO"; if(s>=20)return"MEDIO"; return"BAIXO";
+}
+
+function checkConstraints(d){
+  const v=[]; const fw=(d.framework||[]).map(f=>f.toUpperCase().replace(/\s/g,""));
+  if(!d.mfa_enabled){
+    if(fw.includes("SOX"))     v.push({constraint:"C1",framework:"SOX",motivo:"MFA obrigatório para acesso privilegiado (SOX)"});
+    if(fw.includes("ISO27001")) v.push({constraint:"C2",framework:"ISO27001",motivo:"autenticação forte obrigatória para acesso crítico (ISO 27001)"});
+    if(fw.includes("PCIDSS"))  v.push({constraint:"C3",framework:"PCI DSS",motivo:"MFA obrigatório para acesso administrativo a ambientes de dados de cartão (PCI DSS)"});
+  }
+  return v;
+}
+
+function applyMaturity(riskScore, maturity, decision, path){
+  if(maturity==="HIGH"&&riskScore>=50&&["ALLOW","ALLOW_WITH_RESTRICTION"].includes(decision)){
+    path.push("maturidade_high_aplicada");
+    return {decision:"BLOCK_OR_ENFORCE_MFA",zone:"restrita",influence:"escalamento_de_risco"};
+  }
+  if(maturity==="MEDIUM"&&riskScore>=100&&decision==="ALLOW_WITH_RESTRICTION"){
+    path.push("maturidade_medium_aplicada");
+    return {decision:"REQUIRE_ACTION",zone:"condicionada",influence:"exigencia_de_mitigacao"};
+  }
+  return {decision,zone:null,influence:null};
+}
+
+function decide(d){
+  const path=["risco_calculado"];
+  const maturity=(d.maturity_level||"MEDIUM").toUpperCase();
+  const {score:riskScore,factors}=calculateRisk(d);
+  const riskClassification=classifyRisk(riskScore);
+  const violations=checkConstraints(d);
+  let decision,decisionBasis,appliedZone,maturityInfluence=null;
+
+  if(violations.length){
+    path.push("constraint_detectada","zona_restrita_aplicada","decisao_gerada");
+    decision="BLOCK_OR_ENFORCE_MFA"; decisionBasis="restricao_regulatoria"; appliedZone="restrita";
+  } else if(riskScore>=100){
+    path.push("risco_critico_detectado","zona_condicionada_aplicada");
+    decision="REQUIRE_ACTION"; decisionBasis="score_de_risco"; appliedZone="condicionada";
+    const m=applyMaturity(riskScore,maturity,decision,path);
+    if(m.zone){appliedZone=m.zone;maturityInfluence=m.influence;decisionBasis="maturidade_organizacional";}
+    path.push("decisao_gerada");
+  } else if(riskScore>=50){
+    path.push("risco_alto_detectado","zona_dinamica_aplicada");
+    decision="ALLOW_WITH_RESTRICTION"; decisionBasis="score_de_risco"; appliedZone="dinamica";
+    const m=applyMaturity(riskScore,maturity,decision,path);
+    if(m.zone){decision=m.decision;appliedZone=m.zone;maturityInfluence=m.influence;decisionBasis="maturidade_organizacional";}
+    path.push("decisao_gerada");
+  } else {
+    path.push("risco_baixo_detectado","zona_dinamica_aplicada");
+    decision="ALLOW"; decisionBasis="score_de_risco"; appliedZone="dinamica";
+    const m=applyMaturity(riskScore,maturity,decision,path);
+    if(m.zone){decision=m.decision;appliedZone=m.zone;maturityInfluence=m.influence;decisionBasis="maturidade_organizacional";}
+    path.push("decisao_gerada");
+  }
+
+  return {
+    event_id:"evt-"+Math.random().toString(36).slice(2,14),
+    timestamp:new Date().toISOString(),
+    model_version:MODEL_VERSION, rule_version:RULE_VERSION,
+    user:d.user, recurso_alvo:d.target_resource||"nao_especificado",
+    ambiente:d.environment, frameworks_declarados:d.framework||[],
+    maturity_level:maturity, risk_score:riskScore,
+    risk_classification:riskClassification, risk_factors:factors,
+    regulatory_violations:violations, decision, decision_basis:decisionBasis,
+    applied_zone:appliedZone, maturity_influence:maturityInfluence, decision_path:path
+  };
+}
+
+const CASOS=[
+  {user:"admin01",role:"Global Admin",mfa_enabled:false,last_login_days:45,environment:"production",target_resource:"portal-admin-producao",framework:["ISO27001","SOX"],maturity_level:"MEDIUM"},
+  {user:"dba_senior",role:"DB Admin",mfa_enabled:true,last_login_days:35,environment:"production",target_resource:"db-cluster-producao",framework:[],maturity_level:"LOW"},
+  {user:"dba02",role:"DB Admin",mfa_enabled:true,last_login_days:10,environment:"production",target_resource:"db-cluster-producao",framework:["ISO27001"],maturity_level:"LOW"},
+  {user:"user99",role:"Viewer",mfa_enabled:true,last_login_days:5,environment:"staging",target_resource:"dashboard-relatorios",framework:["ISO27001"],maturity_level:"LOW"},
+  {user:"dba02",role:"DB Admin",mfa_enabled:true,last_login_days:10,environment:"production",target_resource:"db-cluster-producao",framework:["ISO27001"],maturity_level:"HIGH"},
+  {user:"dba_pci",role:"DB Admin",mfa_enabled:false,last_login_days:5,environment:"production",target_resource:"db-dados-cartao",framework:["PCI DSS"],maturity_level:"MEDIUM"},
+];
+
+function loadCase(i){
+  const c=CASOS[i];
+  document.getElementById("f-user").value=c.user;
+  document.getElementById("f-role").value=c.role;
+  document.getElementById("f-mfa").checked=c.mfa_enabled;
+  document.getElementById("mfa-lbl").textContent=c.mfa_enabled?"Habilitado":"Desabilitado";
+  document.getElementById("f-days").value=c.last_login_days;
+  document.getElementById("f-env").value=c.environment;
+  document.getElementById("f-resource").value=c.target_resource;
+  document.getElementById("fw-sox").checked=c.framework.includes("SOX");
+  document.getElementById("fw-iso").checked=c.framework.includes("ISO27001");
+  document.getElementById("fw-pci").checked=c.framework.includes("PCI DSS");
+  document.getElementById("fw-lgpd").checked=c.framework.includes("LGPD");
+  document.getElementById("f-maturity").value=c.maturity_level;
+  document.querySelectorAll(".case-tab").forEach((t,j)=>t.classList.toggle("active",j===i));
+  // update maturity buttons
+  const lvl=c.maturity_level;
+  document.querySelectorAll(".mat-btn").forEach(b=>{
+    b.className="mat-btn";
+    if(b.textContent===lvl) b.classList.add("sel-"+lvl.toLowerCase());
+  });
+}
+
+function setMaturity(level,btn){
+  document.getElementById("f-maturity").value=level;
+  document.querySelectorAll(".mat-btn").forEach(b=>b.className="mat-btn");
+  btn.classList.add("sel-"+level.toLowerCase());
+}
+
+function getInput(){
+  const fw=[];
+  if(document.getElementById("fw-sox").checked) fw.push("SOX");
+  if(document.getElementById("fw-iso").checked) fw.push("ISO27001");
+  if(document.getElementById("fw-pci").checked) fw.push("PCI DSS");
+  if(document.getElementById("fw-lgpd").checked) fw.push("LGPD");
+  return {
+    user:document.getElementById("f-user").value.trim()||"usuario",
+    role:document.getElementById("f-role").value.trim()||"Viewer",
+    mfa_enabled:document.getElementById("f-mfa").checked,
+    last_login_days:parseInt(document.getElementById("f-days").value)||0,
+    environment:document.getElementById("f-env").value,
+    target_resource:document.getElementById("f-resource").value.trim()||"nao_especificado",
+    framework:fw,
+    maturity_level:document.getElementById("f-maturity").value
+  };
+}
+
+function decisionClass(d){
+  return{ALLOW:"d-allow",ALLOW_WITH_RESTRICTION:"d-restrict",REQUIRE_ACTION:"d-action",BLOCK_OR_ENFORCE_MFA:"d-block"}[d]||"d-block";
+}
+function scoreClass(c){
+  return{CRITICO:"sc-critico",ALTO:"sc-alto",MEDIO:"sc-medio",BAIXO:"sc-baixo"}[c]||"";
+}
+
+// Leitura humana do decision_path
+const PATH_LABELS={
+  "risco_calculado":"risco calculado",
+  "constraint_detectada":"violação detectada",
+  "zona_restrita_aplicada":"zona restrita",
+  "risco_critico_detectado":"risco crítico",
+  "zona_condicionada_aplicada":"zona condicionada",
+  "risco_alto_detectado":"risco alto",
+  "zona_dinamica_aplicada":"zona dinâmica",
+  "risco_baixo_detectado":"risco baixo",
+  "maturidade_high_aplicada":"maturidade HIGH elevou",
+  "maturidade_medium_aplicada":"maturidade MEDIUM elevou",
+  "decisao_gerada":"decisão gerada",
+};
+
+function humanPath(path){
+  return path.map(s=>PATH_LABELS[s]||s).join(" → ");
+}
+
+// Explicação textual da decisão
+function buildExplanation(r){
+  const d=r.decision, z=r.applied_zone, b=r.decision_basis, mat=r.maturity_level, inf=r.maturity_influence;
+  const scoreLabel={"CRITICO":"crítico (≥100)","ALTO":"alto (50–99)","MEDIO":"médio (20–49)","BAIXO":"baixo (<20)"}[r.risk_classification]||r.risk_classification;
+
+  if(d==="BLOCK_OR_ENFORCE_MFA" && b==="restricao_regulatoria"){
+    const fws=r.regulatory_violations.map(v=>v.framework).join(" e ");
+    return `Acesso <strong>bloqueado por restrição regulatória</strong> (${fws}). Independente do score de risco (${r.risk_score} — ${scoreLabel}), a ausência de MFA em acesso privilegiado viola obrigações dos frameworks declarados. Restrição regulatória domina todos os outros fatores.`;
+  }
+  if(d==="BLOCK_OR_ENFORCE_MFA" && b==="maturidade_organizacional"){
+    return `Acesso <strong>bloqueado por maturidade organizacional HIGH</strong>. Score de risco: ${r.risk_score} (${scoreLabel}). Com maturidade HIGH, qualquer acesso com risco ≥ 50 é escalado para bloqueio — a organização declarou capacidade de enforcement mais rígido.`;
+  }
+  if(d==="REQUIRE_ACTION"){
+    return `Acesso <strong>condicionado a ação adicional</strong>. Score de risco: ${r.risk_score} (${scoreLabel}). Sem violação regulatória, mas o risco crítico exige mitigação antes do acesso. Decisão na zona condicionada.`;
+  }
+  if(d==="ALLOW_WITH_RESTRICTION"){
+    return `Acesso <strong>permitido com restrição</strong>. Score de risco: ${r.risk_score} (${scoreLabel}). Sem violação regulatória. Risco alto, mas dentro da tolerância declarada com maturidade ${mat}. Controles adicionais recomendados.`;
+  }
+  return `Acesso <strong>permitido</strong>. Score de risco: ${r.risk_score} (${scoreLabel}). Sem violação regulatória, sem risco elevado. Zona dinâmica — decisão baseada diretamente no score.`;
+}
+
+function jsonHL(obj){
+  return JSON.stringify(obj,null,2)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/("(\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,m=>{
+      if(/^"/.test(m)) return/:$/.test(m)?`<span class="jk">${m}</span>`:`<span class="js">${m}</span>`;
+      if(/true/.test(m)) return`<span class="jt">${m}</span>`;
+      if(/false/.test(m)) return`<span class="jf">${m}</span>`;
+      if(/null/.test(m)) return`<span class="jnu">${m}</span>`;
+      return`<span class="jn">${m}</span>`;
+    });
+}
+
+let lastRecord = null;
+
+function exportJSON(){
+  if(!lastRecord) return;
+  const blob=new Blob([JSON.stringify(lastRecord,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=`decisao-${lastRecord.event_id}.json`;
+  a.click();
+}
+
+function renderOutput(r){
+  lastRecord=r;
+  const viols=r.regulatory_violations.map(v=>
+    `<div class="viol-item"><span class="viol-fw">${v.framework} ${v.constraint}</span><span class="viol-text">${v.motivo}</span></div>`
+  ).join("");
+  const pathHtml=r.decision_path.map((s,i)=>
+    (i>0?'<span class="path-arrow">→</span>':"")+
+    `<span class="path-step${i===r.decision_path.length-1?" last":""}">${s}</span>`
+  ).join("");
+  const factorsHtml=r.risk_factors.map(f=>
+    `<span class="factor-chip">${f.regra} +${f.score} · ${f.motivo}</span>`
+  ).join("")||`<span style="font-family:var(--mono);font-size:11px;color:var(--gray)">nenhum fator ativado</span>`;
+
+  document.getElementById("engine-output").innerHTML=`
+  <div style="display:flex;flex-direction:column;flex:1">
+    <div class="dec-banner">
+      <div><div class="dec-label">DECISÃO</div><span class="dec-value ${decisionClass(r.decision)}">${r.decision}</span></div>
+      <div class="dec-meta"><div class="dec-label" style="margin-bottom:4px">ZONA · BASIS</div><span class="dec-zone">${r.applied_zone} · ${r.decision_basis}</span></div>
+    </div>
+    <div class="dec-explain"><p>${buildExplanation(r)}</p></div>
+    <div class="score-sec">
+      <div class="sec-label">SCORE DE RISCO</div>
+      <div><span class="score-big">${r.risk_score}</span><span class="score-cls ${scoreClass(r.risk_classification)}">${r.risk_classification}</span></div>
+      <div class="factors">${factorsHtml}</div>
+      ${r.maturity_influence?`<div class="mat-influence">maturidade ${r.maturity_level}: ${r.maturity_influence}</div>`:""}
+    </div>
+    ${viols?`<div class="viol-sec"><div class="sec-label">VIOLAÇÕES REGULATÓRIAS</div>${viols}</div>`:""}
+    <div class="path-sec">
+      <div class="sec-label">DECISION PATH</div>
+      <div class="path-steps">${pathHtml}</div>
+      <div class="path-readable">${humanPath(r.decision_path)}</div>
+    </div>
+    <div class="json-sec">
+      <div class="sec-label">
+        <span>DECISION TRACE — JSON COMPLETO</span>
+        <button class="export-btn" onclick="exportJSON()">↓ exportar JSON</button>
+      </div>
+      <div class="json-block">${jsonHL(r)}</div>
+    </div>
+  </div>`;
+}
+
+// Sessão e maturidade
+const sessao=[];
+
+function updateMaturity(){
+  const records=sessao;
+  if(!records.length) return;
+  const total=records.length;
+  const byZone={restrita:0,condicionada:0,dinamica:0};
+  const ruleHits={R1:0,R2:0,R3:0,R4:0};
+  const outside=records.filter(r=>r.risk_classification==="CRITICO"||["BLOCK_OR_ENFORCE_MFA","REQUIRE_ACTION"].includes(r.decision)).length;
+  const pct=Math.round(outside/total*100);
+  records.forEach(r=>{
+    byZone[r.applied_zone]=(byZone[r.applied_zone]||0)+1;
+    r.risk_factors.forEach(f=>{if(ruleHits[f.regra]!==undefined)ruleHits[f.regra]++;});
+  });
+  const state=pct>=40?"CRÍTICO":pct>=20?"INSTÁVEL":"ESTÁVEL";
+  const mbCls={"CRÍTICO":"mb-critico","INSTÁVEL":"mb-instavel","ESTÁVEL":"mb-estavel"}[state];
+
+  const userCritical={},userViolations={};
+  records.forEach(r=>{
+    userCritical[r.user]=(userCritical[r.user]||0)+(r.risk_classification==="CRITICO"?1:0);
+    userViolations[r.user]=(userViolations[r.user]||0)+(r.regulatory_violations.length>0?1:0);
+  });
+  const signals=[];
+  Object.entries(userCritical).forEach(([u,c])=>{if(c>=2)signals.push({type:"critical",user:u,text:`${c} decisões com risco CRÍTICO`});});
+  Object.entries(userViolations).forEach(([u,c])=>{if(c>=2)signals.push({type:"warning",user:u,text:`violação regulatória recorrente em ${c} decisões`});});
+
+  const maxRule=Math.max(...Object.values(ruleHits))||1;
+  const rulesHtml=Object.entries(ruleHits).map(([r,c])=>
+    `<div class="rb-row"><span class="rb-label">${r}</span><div class="rb-track"><div class="rb-fill" style="width:${Math.round(c/maxRule*100)}%"></div></div><span class="rb-count">${c}</span></div>`
+  ).join("");
+  const zoneHtml=Object.entries(byZone).filter(([,c])=>c>0).map(([z,c])=>`<span class="factor-chip">${z}: ${c}</span>`).join("");
+  const sigHtml=signals.length
+    ?`<div class="signals-list">${signals.map(s=>`<div class="sig-item"><span class="sig-badge sig-${s.type}">${s.type.toUpperCase()}</span><span class="sig-text"><span class="sig-user">${s.user}</span> — ${s.text}</span></div>`).join("")}</div>`
+    :`<p style="font-family:var(--mono);font-size:11px;color:var(--gray);margin-top:10px">Nenhum sinal detectado ainda.</p>`;
+
+  document.getElementById("maturity-section").innerHTML=`
+    <div class="mat-state-row">
+      <span class="mat-badge ${mbCls}">MATURIDADE: ${state}</span>
+      <span class="mat-sub">${pct}% das decisões fora da tolerância · ${total} decisão${total!==1?"ões":""} nesta sessão</span>
+    </div>
+    <div class="mat-cards">
+      <div class="mat-card"><div class="ml">TOTAL</div><div class="mv">${total}</div><div class="ms">decisões</div></div>
+      <div class="mat-card"><div class="ml">FORA TOLERÂNCIA</div><div class="mv">${pct}%</div><div class="ms">${outside} de ${total}</div></div>
+      <div class="mat-card"><div class="ml">ZONAS</div><div class="mv" style="font-size:13px;padding-top:6px"><div class="factors" style="margin:0">${zoneHtml}</div></div></div>
+    </div>
+    <div class="section-label" style="margin-bottom:10px">Regras mais ativadas</div>
+    <div class="rule-bars">${rulesHtml}</div>
+    <div class="section-label" style="margin-top:18px;margin-bottom:10px">Sinais de correlação</div>
+    ${sigHtml}`;
+}
+
+function runDecision(){
+  const input=getInput();
+  const result=decide(input);
+  sessao.push(result);
+  renderOutput(result);
+  updateMaturity();
+  document.getElementById("motor").scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+loadCase(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "_descricao": "Caso 2 — DBA com MFA ativo, inativo 35 dias, produção. Risco crítico, sem violação regulatória.",
+  "user": "dba_senior",
+  "role": "DB Admin",
+  "mfa_enabled": true,
+  "last_login_days": 35,
+  "environment": "production",
+  "target_resource": "db-cluster-producao",
+  "framework": [],
+  "maturity_level": "LOW"
+}

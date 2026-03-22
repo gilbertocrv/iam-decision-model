@@ -1,0 +1,11 @@
+{
+  "_descricao": "Caso 1 — Admin sem MFA, inativo, produção. Zona restrita por violação SOX + ISO27001.",
+  "user": "admin01",
+  "role": "Global Admin",
+  "mfa_enabled": false,
+  "last_login_days": 45,
+  "environment": "production",
+  "target_resource": "portal-admin-producao",
+  "framework": ["ISO27001", "SOX"],
+  "maturity_level": "MEDIUM"
+}

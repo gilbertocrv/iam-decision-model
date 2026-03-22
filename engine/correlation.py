@@ -20,7 +20,7 @@ from collections import defaultdict
 def detect_repeated_critical(records: list[dict], threshold: int = 3) -> list[dict]:
     counts = defaultdict(int)
     for r in records:
-        if r.get("risk_classification") == "CRITICAL":
+        if r.get("risk_classification") == "CRITICO":
             counts[r["user"]] += 1
     return [
         {
@@ -75,7 +75,7 @@ def detect_persistent_no_mfa(records: list[dict]) -> list[dict]:
     mfa_seen = defaultdict(set)
     for r in records:
         for factor in r.get("risk_factors", []):
-            if factor.get("rule") == "R2":
+            if factor.get("regra") == "R2":
                 mfa_seen[r["user"]].add(False)
             else:
                 mfa_seen[r["user"]].add(True)

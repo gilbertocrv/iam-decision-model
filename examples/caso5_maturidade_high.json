@@ -1,0 +1,11 @@
+{
+  "_descricao": "Caso 5 — Maturidade HIGH eleva decisão. Mesmo perfil do caso 3, mas maturidade organizacional alta força bloqueio.",
+  "user": "dba02",
+  "role": "DB Admin",
+  "mfa_enabled": true,
+  "last_login_days": 10,
+  "environment": "production",
+  "target_resource": "db-cluster-producao",
+  "framework": ["ISO27001"],
+  "maturity_level": "HIGH"
+}

@@ -1,0 +1,11 @@
+{
+  "_descricao": "Caso 6 — Admin sem MFA em ambiente de dados de cartão. Violação PCI DSS (C3) independente de outros frameworks.",
+  "user": "dba_pci",
+  "role": "DB Admin",
+  "mfa_enabled": false,
+  "last_login_days": 5,
+  "environment": "production",
+  "target_resource": "db-dados-cartao",
+  "framework": ["PCI DSS"],
+  "maturity_level": "MEDIUM"
+}

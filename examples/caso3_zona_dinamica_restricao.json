@@ -1,0 +1,11 @@
+{
+  "_descricao": "Caso 3 — DBA com MFA ativo, login recente, produção. Risco alto, zona dinâmica com restrição.",
+  "user": "dba02",
+  "role": "DB Admin",
+  "mfa_enabled": true,
+  "last_login_days": 10,
+  "environment": "production",
+  "target_resource": "db-cluster-producao",
+  "framework": ["ISO27001"],
+  "maturity_level": "LOW"
+}

@@ -1,139 +1,94 @@
 """
-Batch runner — Risk-Adaptive IAM Decision Engine
--------------------------------------------------
-Runs multiple input cases, persists every decision, then
-generates a maturity report from the accumulated evidence.
+Executor em lote — Motor de Decisão IAM Adaptativo ao Risco
+------------------------------------------------------------
+Executa múltiplos casos de entrada, persiste cada decisão em evidence/
+e gera o relatório de maturidade a partir da evidência acumulada.
 
-Usage
------
-  python run_batch.py                        # uses built-in test cases
-  python run_batch.py examples/case1.json    # single file
-  python run_batch.py examples/              # all JSON files in a directory
+Uso
+---
+  python run_batch.py                    # usa casos internos
+  python run_batch.py examples/caso1.json
+  python run_batch.py examples/          # todos os JSON de uma pasta
 """
 
-import json
-import sys
+import json, sys
 from pathlib import Path
 
-# Allow imports from engine/
 sys.path.insert(0, str(Path(__file__).parent / "engine"))
 
 from decision_engine import decide
-from persistence     import save, DEFAULT_DIR
-from maturity        import build_report
+from persistence import save, DEFAULT_DIR
+from maturity import build_report
 
 
-# ─── Built-in cases ───────────────────────────────────────────────────────────
-# Representative scenarios covering all three decision zones.
+# ─── Casos internos de referência ────────────────────────────────────────────
 
-BUILTIN_CASES = [
-    # ── Restricted zone ───────────────────────────────────────────────────────
-    {
-        "user": "admin01", "role": "Global Admin",
-        "mfa_enabled": False, "last_login_days": 45,
-        "environment": "production", "target_resource": "admin-portal",
-        "framework": ["ISO27001", "SOX"],
-    },
-    {
-        "user": "admin01", "role": "Global Admin",
-        "mfa_enabled": False, "last_login_days": 50,
-        "environment": "production", "target_resource": "billing-system",
-        "framework": ["ISO27001", "SOX"],
-    },
-    {
-        "user": "admin01", "role": "Global Admin",
-        "mfa_enabled": False, "last_login_days": 55,
-        "environment": "production", "target_resource": "user-directory",
-        "framework": ["ISO27001", "SOX"],
-    },
-    # ── Conditioned zone ──────────────────────────────────────────────────────
-    {
-        "user": "dba_senior", "role": "DB Admin",
-        "mfa_enabled": True, "last_login_days": 35,
-        "environment": "production", "target_resource": "db-cluster-prod",
-        "framework": [],
-    },
-    {
-        "user": "dba_senior", "role": "DB Admin",
-        "mfa_enabled": True, "last_login_days": 38,
-        "environment": "production", "target_resource": "db-replica-prod",
-        "framework": [],
-    },
-    # ── Dynamic zone — allow with restriction ─────────────────────────────────
-    {
-        "user": "dba02", "role": "DB Admin",
-        "mfa_enabled": True, "last_login_days": 10,
-        "environment": "production", "target_resource": "db-cluster-prod",
-        "framework": ["ISO27001"],
-    },
-    {
-        "user": "eng01", "role": "Read Admin",
-        "mfa_enabled": True, "last_login_days": 8,
-        "environment": "production", "target_resource": "logs-portal",
-        "framework": ["ISO27001"],
-    },
-    # ── Dynamic zone — allow ──────────────────────────────────────────────────
-    {
-        "user": "user99", "role": "Viewer",
-        "mfa_enabled": True, "last_login_days": 5,
-        "environment": "staging", "target_resource": "reports-dashboard",
-        "framework": ["ISO27001"],
-    },
-    {
-        "user": "user42", "role": "Viewer",
-        "mfa_enabled": True, "last_login_days": 3,
-        "environment": "staging", "target_resource": "analytics-dashboard",
-        "framework": ["ISO27001"],
-    },
-    {
-        "user": "analyst01", "role": "Analyst",
-        "mfa_enabled": True, "last_login_days": 1,
-        "environment": "staging", "target_resource": "data-exports",
-        "framework": ["ISO27001"],
-    },
+CASOS_INTERNOS = [
+    # Zona restrita — violação regulatória
+    {"user":"admin01","role":"Global Admin","mfa_enabled":False,"last_login_days":45,
+     "environment":"production","target_resource":"portal-admin","framework":["ISO27001","SOX"],"maturity_level":"MEDIUM"},
+    {"user":"admin01","role":"Global Admin","mfa_enabled":False,"last_login_days":50,
+     "environment":"production","target_resource":"sistema-faturamento","framework":["ISO27001","SOX"],"maturity_level":"MEDIUM"},
+    {"user":"admin01","role":"Global Admin","mfa_enabled":False,"last_login_days":55,
+     "environment":"production","target_resource":"diretorio-usuarios","framework":["ISO27001","SOX"],"maturity_level":"MEDIUM"},
+    # Zona condicionada — risco crítico
+    {"user":"dba_senior","role":"DB Admin","mfa_enabled":True,"last_login_days":35,
+     "environment":"production","target_resource":"db-cluster-prod","framework":[],"maturity_level":"LOW"},
+    {"user":"dba_senior","role":"DB Admin","mfa_enabled":True,"last_login_days":38,
+     "environment":"production","target_resource":"db-replica-prod","framework":[],"maturity_level":"LOW"},
+    # Zona dinâmica — com restrição
+    {"user":"dba02","role":"DB Admin","mfa_enabled":True,"last_login_days":10,
+     "environment":"production","target_resource":"db-cluster-prod","framework":["ISO27001"],"maturity_level":"LOW"},
+    {"user":"eng01","role":"Read Admin","mfa_enabled":True,"last_login_days":8,
+     "environment":"production","target_resource":"portal-logs","framework":["ISO27001"],"maturity_level":"LOW"},
+    # Zona dinâmica — maturidade HIGH eleva decisão
+    {"user":"dba02","role":"DB Admin","mfa_enabled":True,"last_login_days":10,
+     "environment":"production","target_resource":"db-cluster-prod","framework":["ISO27001"],"maturity_level":"HIGH"},
+    # Zona dinâmica — allow
+    {"user":"user99","role":"Viewer","mfa_enabled":True,"last_login_days":5,
+     "environment":"staging","target_resource":"dashboard-relatorios","framework":["ISO27001"],"maturity_level":"LOW"},
+    {"user":"user42","role":"Viewer","mfa_enabled":True,"last_login_days":3,
+     "environment":"staging","target_resource":"dashboard-analytics","framework":["ISO27001"],"maturity_level":"LOW"},
+    # PCI DSS
+    {"user":"dba_pci","role":"DB Admin","mfa_enabled":False,"last_login_days":5,
+     "environment":"production","target_resource":"db-dados-cartao","framework":["PCI DSS"],"maturity_level":"MEDIUM"},
 ]
 
 
-# ─── Runner ───────────────────────────────────────────────────────────────────
-
-def load_cases_from_path(path: Path) -> list[dict]:
-    cases = []
-    targets = [path] if path.is_file() else sorted(path.glob("*.json"))
-    for f in targets:
-        with open(f) as fp:
-            data = json.load(fp)
-        data.pop("_description", None)
-        cases.append(data)
-    return cases
+def carregar_casos(caminho: Path) -> list[dict]:
+    casos = []
+    arquivos = [caminho] if caminho.is_file() else sorted(caminho.glob("*.json"))
+    for arq in arquivos:
+        with open(arq) as f:
+            dados = json.load(f)
+        dados.pop("_descricao", None)
+        casos.append(dados)
+    return casos
 
 
-def run_batch(cases: list[dict], evidence_dir=DEFAULT_DIR) -> list[dict]:
-    results = []
-    for case in cases:
-        record = decide(case)
-        log_file = save(record, evidence_dir)
-        results.append(record)
-        print(f"  [{record['decision']:<28}]  {record['user']}  →  {log_file.name}")
-    return results
+def executar_lote(casos: list[dict], evidence_dir=DEFAULT_DIR) -> list[dict]:
+    resultados = []
+    for caso in casos:
+        registro = decide(caso)
+        arq_log  = save(registro, evidence_dir)
+        resultados.append(registro)
+        print(f"  [{registro['decision']:<28}]  {registro['user']:<14}  maturidade: {registro['maturity_level']}  →  {arq_log.name}")
+    return resultados
 
-
-# ─── Entry point ─────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     evidence_dir = DEFAULT_DIR
 
     if len(sys.argv) > 1:
-        target = Path(sys.argv[1])
-        cases  = load_cases_from_path(target)
+        casos = carregar_casos(Path(sys.argv[1]))
     else:
-        cases = BUILTIN_CASES
+        casos = CASOS_INTERNOS
 
-    print(f"\nBatch runner — {len(cases)} cases\n{'─' * 52}")
-    results = run_batch(cases, evidence_dir)
+    print(f"\nExecutor em lote — {len(casos)} casos\n{'─' * 60}")
+    executar_lote(casos, evidence_dir)
 
-    print(f"\n{'─' * 52}")
-    print(f"  Decisions saved to: {evidence_dir}/\n")
-
-    print("Maturity report\n" + "─" * 52)
-    report = build_report(evidence_dir)
-    print(json.dumps(report, indent=2))
+    print(f"\n{'─' * 60}")
+    print(f"  Decisões salvas em: {evidence_dir}/\n")
+    print("Relatório de maturidade\n" + "─" * 60)
+    relatorio = build_report(evidence_dir)
+    print(json.dumps(relatorio, indent=2, ensure_ascii=False))
