@@ -1,8 +1,8 @@
 # Motor de Decisão IAM Adaptativo ao Risco
 
-> Decisão = f(risco, regra_de_negócio, maturidade, restrição_regulatória)
+Este modelo implementa um mecanismo de decisão de acesso baseado em risco (RAdAC), onde permissões estáticas são avaliadas dinamicamente com base em contexto, maturidade organizacional e restrições regulatórias, produzindo decisões auditáveis em tempo real.
 
-Arquitetura de decisão de acesso orientada a risco, onde o acesso não é definido por fluxo fixo, mas por avaliação dinâmica baseada em contexto, capacidade operacional e limites regulatórios. O motor executa em tempo real, produz um decision trace completo e alimenta uma camada de maturidade que calibra as regras ao longo do tempo.
+> Decisão = f(risco, regra_de_negócio, maturidade, restrição_regulatória)
 
 ---
 
